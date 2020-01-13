@@ -147,6 +147,17 @@ class PublisherInfoDatabase {
       const ledger::ActivityMonth month,
       const int year);
 
+  void GetNotCompletedContributions(
+      ledger::ContributionInfoList* list);
+
+  ledger::ContributionInfoPtr GetContributionInfo(
+      const std::string& contribution_id);
+
+  bool UpdateContributionInfoStepAndCount(
+      const std::string& contribution_id,
+      const ledger::ContributionStep step,
+      const int32_t retry_count);
+
   // Vacuums the database. This will cause sqlite to defragment and collect
   // unused space in the file. It can be VERY SLOW.
   void Vacuum();

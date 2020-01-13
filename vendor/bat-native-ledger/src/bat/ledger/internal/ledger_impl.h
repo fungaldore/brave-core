@@ -215,12 +215,19 @@ class LedgerImpl : public ledger::Ledger,
       const ledger::UrlMethod method,
       ledger::LoadURLCallback callback);
 
+  // DEPRECATED
   virtual void ReconcileComplete(
       const ledger::Result result,
       const double amount,
       const std::string& viewing_id,
       const ledger::RewardsType type,
       const bool delete_reconcile = true);
+
+  virtual void ContributionCompleted(
+      const ledger::Result result,
+      const double amount,
+      const std::string& contribution_id,
+      const ledger::RewardsType type);
 
   std::string URIEncode(const std::string& value) override;
 
@@ -608,6 +615,19 @@ class LedgerImpl : public ledger::Ledger,
       const ledger::ActivityMonth month,
       const int year,
       ledger::GetContributionReportCallback callback) override;
+
+  void GetNotCompletedContributions(
+      ledger::GetNotCompletedContributionsCallback callback);
+
+  void GetContributionInfo(
+      const std::string& contribution_id,
+      ledger::GetContributionInfoCallback callback);
+
+  void UpdateContributionInfoStepAndCount(
+      const std::string& contribution_id,
+      const ledger::ContributionStep step,
+      const int32_t retry_count,
+      ledger::ResultCallback callback);
 
  private:
   void InitializeConfirmations(

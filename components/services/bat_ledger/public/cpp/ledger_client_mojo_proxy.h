@@ -264,6 +264,19 @@ class LedgerClientMojoProxy : public mojom::BatLedgerClient,
       const int year,
       GetContributionReportCallback callback) override;
 
+  void GetNotCompletedContributions(
+      GetNotCompletedContributionsCallback callback) override;
+
+  void GetContributionInfo(
+      const std::string& contribution_id,
+      GetContributionInfoCallback callback) override;
+
+  void UpdateContributionInfoStepAndCount(
+      const std::string& contribution_id,
+      const ledger::ContributionStep step,
+      const int32_t retry_count,
+      UpdateContributionInfoStepAndCountCallback callback) override;
+
  private:
   // workaround to pass base::OnceCallback into std::bind
   // also serves as a wrapper for passing ledger::LedgerCallbackHandler*
@@ -483,6 +496,18 @@ class LedgerClientMojoProxy : public mojom::BatLedgerClient,
   static void OnGetContributionReport(
       CallbackHolder<GetContributionReportCallback>* holder,
       ledger::ContributionReportInfoList list);
+
+  static void OnGetNotCompletedContributions(
+      CallbackHolder<GetNotCompletedContributionsCallback>* holder,
+      ledger::ContributionInfoList list);
+
+  static void OnGetContributionInfo(
+      CallbackHolder<GetContributionInfoCallback>* holder,
+      ledger::ContributionInfoPtr info);
+
+  static void OnUpdateContributionInfoStepAndCount(
+      CallbackHolder<UpdateContributionInfoStepAndCountCallback>* holder,
+      const ledger::Result result);
 
   ledger::LedgerClient* ledger_client_;
 

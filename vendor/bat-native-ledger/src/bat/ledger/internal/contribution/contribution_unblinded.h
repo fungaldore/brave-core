@@ -31,9 +31,16 @@ class Unblinded {
   explicit Unblinded(bat_ledger::LedgerImpl* ledger);
   ~Unblinded();
 
+  void Initialize();
+
   void Start(const std::string& viewing_id);
 
+  bool DoRetry(ledger::ContributionInfoPtr info);
+
  private:
+  void OnGetNotCompletedContributions(
+      ledger::ContributionInfoList list);
+
   void OnUnblindedTokens(
       const std::string& viewing_id,
       ledger::UnblindedTokenList list);

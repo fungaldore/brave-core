@@ -25,12 +25,7 @@ using challenge_bypass_ristretto::UnblindedToken;
 using challenge_bypass_ristretto::VerificationKey;
 using challenge_bypass_ristretto::VerificationSignature;
 
-namespace braveledger_contribution {
-
-Unblinded::Unblinded(bat_ledger::LedgerImpl* ledger) : ledger_(ledger) {
-}
-
-Unblinded::~Unblinded() = default;
+namespace {
 
 std::string ConvertTypeToString(const ledger::RewardsType type) {
   switch (static_cast<int>(type)) {
@@ -131,23 +126,60 @@ std::string GenerateTokenPayload(
   return json;
 }
 
-void Unblinded::Start(const std::string& viewing_id) {
-  ledger_->GetAllUnblindedTokens(
+}  // namespace
+
+namespace braveledger_contribution {
+
+Unblinded::Unblinded(bat_ledger::LedgerImpl* ledger) : ledger_(ledger) {
+}
+
+Unblinded::~Unblinded() = default;
+
+void Unblinded::Initialize() {
+  auto callback = std::bind(&Unblinded::OnGetNotCompletedContributions,
+      this,
+      _1);
+  ledger_->GetNotCompletedContributions(callback);
+}
+
+void Unblinded::OnGetNotCompletedContributions(
+    ledger::ContributionInfoList list) {
+  if (list.size() == 0) {
+    return;
+  }
+}
+
+void Unblinded::Start(const std::string& contribution_id) {
+    ledger_->GetAllUnblindedTokens(
       std::bind(&Unblinded::OnUnblindedTokens,
                 this,
-                viewing_id,
+                contribution_id,
                 _1));
 }
 
 void Unblinded::OnUnblindedTokens(
-    const std::string& viewing_id,
+    const std::string& contribution_id,
     ledger::UnblindedTokenList list) {
   if (list.empty()) {
-    ContributionCompleted(ledger::Result::NOT_ENOUGH_FUNDS, viewing_id);
+    ContributionCompleted(ledger::Result::NOT_ENOUGH_FUNDS, contribution_id);
     return;
   }
 
-  const auto reconcile = ledger_->GetReconcileById(viewing_id);
+  ledger_->GetContributionInfo(contribution_id,
+      std::bind(&Unblinded::OnUnblindedTokens,
+                this,
+                _1,
+                std::move(list)));
+}
+
+void Unblinded::OnUnblindedTokens(
+    ledger::ContributionInfoPtr contribution,
+    ledger::UnblindedTokenList list) {
+    if (!contribution) {
+    ContributionCompleted(ledger::Result::LEDGER_ERROR, contribution_id);
+    return;
+  }
+
   double current_amount = 0.0;
   ledger::UnblindedTokenList token_list;
   std::vector<std::string> delete_list;
@@ -157,7 +189,7 @@ void Unblinded::OnUnblindedTokens(
       continue;
     }
 
-    if (current_amount >= reconcile.fee) {
+    if (current_amount >= contribution->amount) {
       break;
     }
 
@@ -169,49 +201,69 @@ void Unblinded::OnUnblindedTokens(
     ledger_->DeleteUnblindedTokens(delete_list, [](const ledger::Result _){});
   }
 
-  if (current_amount < reconcile.fee) {
-    ContributionCompleted(ledger::Result::NOT_ENOUGH_FUNDS, viewing_id);
+  if (current_amount < contribution->amount) {
+    ContributionCompleted(ledger::Result::NOT_ENOUGH_FUNDS, contribution_id);
     return;
   }
 
-  MakeContribution(viewing_id, std::move(token_list));
+  MakeContribution(
+      contribution_id,
+      std::move(token_list),
+      std::move(contribution));
 }
 
 void Unblinded::MakeContribution(
-    const std::string& viewing_id,
-    ledger::UnblindedTokenList list) {
-  const auto reconcile = ledger_->GetReconcileById(viewing_id);
-
-  if (reconcile.type == ledger::RewardsType::ONE_TIME_TIP ||
-      reconcile.type == ledger::RewardsType::RECURRING_TIP) {
-    const auto callback = std::bind(&Unblinded::ContributionCompleted,
+    const std::string& contribution_id,
+    ledger::UnblindedTokenList list,
+    ledger::ContributionInfoPtr contribution) {
+  if (contribution->type == ledger::RewardsType::ONE_TIME_TIP ||
+      contribution->type == ledger::RewardsType::RECURRING_TIP) {
+    const auto callback = std::bind(&Unblinded::TipContributionCompleted,
         this,
         _1,
-        viewing_id);
+        contribution_id);
     SendTokens(
-        reconcile.directions.front().publisher_key,
-        reconcile.type,
+        contribution->publishers.front().publisher_key,
+        contribution->type,
         std::move(list),
         callback);
+
+  ledger_->UpdateContributionInfoStepAndCount(
+      contribution_id,
+      ledger::ContributionStep::STEP_SUGGESTIONS,
+      0);
     return;
   }
 
-  if (reconcile.type == ledger::RewardsType::AUTO_CONTRIBUTE) {
-    PrepareAutoContribution(viewing_id, std::move(list));
+  if (contribution->type == ledger::RewardsType::AUTO_CONTRIBUTE) {
+    PrepareAutoContribution(
+        contribution_id,
+        std::move(list),
+        std::move(contribution));
   }
+}
+
+void Unblinded::TipContributionCompleted(
+    const ledger::Result result,
+    const std::string& contribution_id) {
+  if (result != ledger::Result::LEDGER_OK) {
+    return;
+  }
+  ContributionCompleted(ledger::Result::LEDGER_OK, contribution_id);
 }
 
 bool Unblinded::GetStatisticalVotingWinner(
     double dart,
-    const ledger::ReconcileDirections& directions,
+    const double amount,
+    ledger::ContributionPublisherList* list,
     Winners* winners) const {
   if (!winners) {
     return false;
   }
 
   double upper = 0.0;
-  for (const auto& item : directions) {
-    upper += item.amount_percent / 100.0;
+  for (const auto item : *list) {
+    upper +=  / 100.0;
     if (upper < dart) {
       continue;
     }
@@ -234,59 +286,67 @@ bool Unblinded::GetStatisticalVotingWinner(
 
 void Unblinded::GetStatisticalVotingWinners(
     uint32_t total_votes,
-    const ledger::ReconcileDirections& directions,
+    const double amount,
+    ledger::ContributionPublisherList list,
     Winners* winners) const {
   while (total_votes > 0) {
     double dart = brave_base::random::Uniform_01();
-    if (GetStatisticalVotingWinner(dart, directions, winners)) {
+    if (GetStatisticalVotingWinner(dart, amount, list.get(), winners)) {
       --total_votes;
     }
   }
 }
 
 void Unblinded::PrepareAutoContribution(
-    const std::string& viewing_id,
-    ledger::UnblindedTokenList list) {
+    const std::string& contribution_id,
+    ledger::UnblindedTokenList list,
+    ledger::ContributionInfoPtr contribution) {
   if (list.size() == 0) {
-    ContributionCompleted(ledger::Result::AC_TABLE_EMPTY, viewing_id);
+    ContributionCompleted(ledger::Result::AC_TABLE_EMPTY, contribution_id);
     return;
   }
 
-  auto reconcile = ledger_->GetReconcileById(viewing_id);
   const double total_votes = static_cast<double>(list.size());
   Winners winners;
-  GetStatisticalVotingWinners(total_votes, reconcile.directions, &winners);
+  GetStatisticalVotingWinners(
+      total_votes,
+      contribution->amount,
+      contribution->publishers,
+      &winners);
 
-  ledger::ReconcileDirections new_directions;
+  ledger::ContributionPublisherList publisher_list;
   uint32_t current_position = 0;
   for (auto & winner : winners) {
     if (winner.second == 0) {
       continue;
     }
 
-    ledger::ReconcileDirectionProperties direction;
-    direction.publisher_key = winner.first;
-    direction.amount_percent = (winner.second / total_votes) * 100;
-    new_directions.push_back(direction);
+    const std::string publisher_key = winner.first
+    auto publisher = ledger::ContributionPublisher::New();
+    publisher.publisher_key = publisher_key;
+    direction.total_amount =
+        (winner.second / total_votes) * contribution->amount;
+    direction.contributed_amount = 0;
+    publisher_list.push_back(std::move(publisher));
 
     const uint32_t new_position = current_position + winner.second;
-    ledger::UnblindedTokenList new_list;
+    ledger::UnblindedTokenList token_list;
     for (size_t i = current_position; i < new_position; i++) {
-      new_list.push_back(std::move(list[i]));
+      token_list.push_back(std::move(list[i]));
     }
     current_position = new_position;
 
     SendTokens(
-        winner.first,
+        publisher_key,
         ledger::RewardsType::AUTO_CONTRIBUTE,
-        std::move(new_list),
+        std::move(token_list),
         [](const ledger::Result _){});
   }
 
-  reconcile.directions = new_directions;
-  ledger_->UpdateReconcile(reconcile);
-
-  ContributionCompleted(ledger::Result::LEDGER_OK, viewing_id);
+  contribution.publishers = std::move(publisher_list);
+  ledger_->SaveContributionInfo(
+      std::move(contribution),
+      [](const ledger::Result _){});
 }
 
 void Unblinded::SendTokens(
@@ -340,19 +400,39 @@ void Unblinded::OnSendTokens(
     return;
   }
 
+  // TODO we need to update publisher value in contribution_info_publishers
+
   ledger_->DeleteUnblindedTokens(token_id_list, [](const ledger::Result _){});
   callback(ledger::Result::LEDGER_OK);
 }
 
 void Unblinded::ContributionCompleted(
     const ledger::Result result,
-    const std::string& viewing_id) {
-  const auto reconcile = ledger_->GetReconcileById(viewing_id);
-  ledger_->ReconcileComplete(
+    const std::string& contribution_id) {
+
+  // fetch contribution info
+  ledger_->ContributionCompleted(
       result,
-      reconcile.fee,
-      viewing_id,
-      reconcile.type);
+      amount,
+      contribution_id,
+      type);
+}
+
+bool Unblinded::DoRetry(ledger::ContributionInfoPtr info) {
+  if (!info) {
+    return false;
+  }
+
+  if (info->step == ledger::ContributionStep::STEP_SUGGESTIONS) {
+    // TODO go through all publisher
+    // if all publishers contributed
+    ContributionCompleted(
+        ledger::ContributionStep::STEP_STEP_COMPLETED,
+        info->amount,
+        contribution_id);
+  }
+
+  return true;
 }
 
 }  // namespace braveledger_contribution

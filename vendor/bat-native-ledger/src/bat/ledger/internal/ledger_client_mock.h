@@ -382,6 +382,9 @@ class MockLedgerClient : public LedgerClient {
       const ledger::ActivityMonth month,
       const int year,
       ledger::GetContributionReportCallback callback));
+
+  MOCK_METHOD1(GetNotCompletedContributions, void(
+      ledger::GetNotCompletedContributionsCallback callback));
 };
 
 }  // namespace ledger

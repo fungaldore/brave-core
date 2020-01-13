@@ -752,6 +752,19 @@ class RewardsServiceImpl : public RewardsService,
       const int year,
       ledger::GetContributionReportCallback callback) override;
 
+  void GetNotCompletedContributions(
+      ledger::GetNotCompletedContributionsCallback callback) override;
+
+  void GetContributionInfo(
+      const std::string& contribution_id,
+      ledger::GetContributionInfoCallback callback) override;
+
+  void UpdateContributionInfoStepAndCount(
+      const std::string& contribution_id,
+      const ledger::ContributionStep step,
+      const int32_t retry_count,
+      ledger::ResultCallback callback) override;
+
   // end ledger::LedgerClient
 
   // Mojo Proxy methods
@@ -841,6 +854,14 @@ class RewardsServiceImpl : public RewardsService,
   void OnGetContributionReport(
       ledger::GetContributionReportCallback callback,
       ledger::ContributionReportInfoList list);
+
+  void OnGetNotCompletedContributions(
+      ledger::GetNotCompletedContributionsCallback callback,
+      ledger::ContributionInfoList list);
+
+  void OnGetContributionInfo(
+      ledger::GetContributionInfoCallback callback,
+      ledger::ContributionInfoPtr info);
 
 #if defined(OS_ANDROID)
   ledger::Environment GetServerEnvironmentForAndroid();

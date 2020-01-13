@@ -661,6 +661,26 @@ void LedgerImpl::ReconcileComplete(
       type);
 }
 
+void LedgerImpl::ContributionCompleted(
+    const ledger::Result result,
+    const double amount,
+    const std::string& contribution_id,
+    const ledger::RewardsType type) {
+  bat_contribution_->ContributionCompleted(
+      contribution_id,
+      type,
+      amount,
+      result);
+
+  // TODO(https://github.com/brave/brave-browser/issues/7717)
+  // rename to ContributionCompleted
+  ledger_client_->OnReconcileComplete(
+      result,
+      contribution_id,
+      amount,
+      type);
+}
+
 void LedgerImpl::OnWalletProperties(
     ledger::Result result,
     const ledger::WalletProperties& properties) {
@@ -1604,6 +1624,29 @@ void LedgerImpl::GetContributionReport(
     const int year,
     ledger::GetContributionReportCallback callback) {
   ledger_client_->GetContributionReport(month, year, callback);
+}
+
+void LedgerImpl::GetNotCompletedContributions(
+    ledger::GetNotCompletedContributionsCallback callback) {
+  ledger_client_->GetNotCompletedContributions(callback);
+}
+
+void LedgerImpl::GetContributionInfo(
+    const std::string& contribution_id,
+    ledger::GetContributionInfoCallback callback) {
+  ledger_client_->GetContributionInfo(contribution_id, callback);
+}
+
+void LedgerImpl::UpdateContributionInfoStepAndCount(
+    const std::string& contribution_id,
+    const ledger::ContributionStep step,
+    const int32_t retry_count,
+    ledger::ResultCallback callback) {
+  ledger_client_->UpdateContributionInfoStepAndCount(
+      contribution_id,
+      step,
+      retry_count,
+      callback);
 }
 
 }  // namespace bat_ledger

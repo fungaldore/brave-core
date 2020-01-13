@@ -244,6 +244,19 @@ class BatLedgerClientMojoProxy : public ledger::LedgerClient,
       const int year,
       ledger::GetContributionReportCallback callback) override;
 
+  void GetNotCompletedContributions(
+      ledger::GetNotCompletedContributionsCallback callback) override;
+
+  void GetContributionInfo(
+      const std::string& contribution_id,
+      ledger::GetContributionInfoCallback callback) override;
+
+  void UpdateContributionInfoStepAndCount(
+      const std::string& contribution_id,
+      const ledger::ContributionStep step,
+      const int32_t retry_count,
+      ledger::ResultCallback callback) override;
+
  private:
   bool Connected() const;
 

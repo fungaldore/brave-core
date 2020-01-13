@@ -173,6 +173,15 @@ enum ContributionRetry {
   STEP_FINAL = 10      // Phase 2
 };
 
+enum ContributionStep {
+  STEP_AC_TABLE_EMPTY = -4
+  STEP_NOT_ENOUGH_FUNDS = -3
+  STEP_FAILED = -2
+  STEP_COMPLETED = -1,
+  STEP_NO = 0,
+  STEP_SUGGESTIONS = 1
+};
+
 struct ReconcileInfo {
   string viewing_id;
   string amount;
