@@ -1237,7 +1237,8 @@ bool AdsServiceImpl::MigratePrefs(
     {{2, 3}, &AdsServiceImpl::MigratePrefsVersion2To3},
     {{3, 4}, &AdsServiceImpl::MigratePrefsVersion3To4},
     {{4, 5}, &AdsServiceImpl::MigratePrefsVersion4To5},
-    {{5, 6}, &AdsServiceImpl::MigratePrefsVersion5To6}
+    {{5, 6}, &AdsServiceImpl::MigratePrefsVersion5To6},
+    {{6, 7}, &AdsServiceImpl::MigratePrefsVersion6To7}
   };
 
   // Cycle through migration paths, i.e. if upgrading from version 2 to 5 we
@@ -1420,6 +1421,24 @@ void AdsServiceImpl::MigratePrefsVersion5To6() {
   // migrate to the new value
 
   SetUint64Pref(prefs::kAdsPerDay, 20);
+}
+
+void AdsServiceImpl::MigratePrefsVersion6To7() {
+  if (!IsEnabled()) {
+    return;
+  }
+
+  const int last_schema_version =
+      GetIntegerPref(prefs::kSupportedRegionsLastSchemaVersion);
+
+  const std::string locale = GetLocale();
+  if (!ads::Ads::IsNewlySupportedLocale(locale, last_schema_version)) {
+    return;
+  }
+
+  // Disable ads for unsupported legacy regions due to a bug where ads were
+  // enabled even if the users region was not supported
+  SetEnabled(false);
 }
 
 int AdsServiceImpl::GetPrefsVersion() const {
