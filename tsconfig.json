@@ -33,7 +33,18 @@
     "noUnusedLocals": true
   },
   "include": [
-    "./components/definitions/*",
-    "./components/brave_extension/extension/brave_extension/types/**/*"
+    // Since our project is enourmous,
+    // manually select files we want to be included by TS.
+    // Otherwise intellisense won't work accusing too many files.
+    // See https://github.com/brave/brave-browser/issues/7808
+    "./components/brave_adblock_ui",
+    "./components/brave_extension/extension/brave_extension",
+    "./components/brave_rewards/resources",
+    "./components/brave_sync/ui",
+    "./components/brave_webtorrent/extension",
+    "./components/brave_welcome_ui",
+    "./components/brave_new_tab_ui",
+    "./components/brave_new_tab_ui",
+    "./components/definitions/*"
   ]
 }
